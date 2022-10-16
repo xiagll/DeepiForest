@@ -1,12 +1,6 @@
-"""A wrapper on the base estimator for the naming consistency."""
-
-
 __all__ = ["Estimator"]
 
-from .lsh_forest import ALSHForest, L1SHForest, L2SHForest     # OPSHForest,
-#from .l2h_forest import EucL1SHForest, EucL2SHForest, SimpL1SHForest, SimpL2SHForest, KmeansForest
-
-
+from .lsh_forest import ALSHForest, L1SHForest, L2SHForest
 
 def make_estimator(
     name,
@@ -17,30 +11,20 @@ def make_estimator(
     if name == "ALSH":
         estimator = ALSHForest(
             num_trees=n_trees,
-            #granularity=granularity,
             n_jobs=n_jobs
         )
     # L1SHForest
     elif name == "L1SH":
         estimator = L1SHForest(
             num_trees=n_trees,
-            # granularity=granularity,
             n_jobs=n_jobs
         )
     # L2SHForest
     elif name == "L2SH":
         estimator = L2SHForest(
             num_trees=n_trees,
-            # granularity=granularity,
             n_jobs=n_jobs
         )
-    # OPSHForest
-    # elif name == "OPSH":
-    #     estimator = OPSHForest(
-    #         num_trees=n_trees,
-    #         # granularity=granularity,
-    #         n_jobs=n_jobs
-    #     )
     else:
         msg = "Unknown type of estimator, which should be one of {{rf, erf}}."
         raise NotImplementedError(msg)
@@ -61,9 +45,6 @@ class Estimator(object):
                                          n_trees,
                                          n_jobs)
 
-    @property
-    def oob_decision_function_(self):
-        return self.estimator_.oob_decision_function_
 
     def fit_transform(self, X):
 

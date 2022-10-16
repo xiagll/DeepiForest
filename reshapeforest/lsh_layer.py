@@ -147,18 +147,10 @@ class Layer(object):
             key = "{}-{}-{}".format(self.layer_idx, estimator_idx, "L2SH")
             self.estimators_.update({key: _estimator})
 
-        # Set the OOB estimations and validation accuracy
-        #self.oob_decision_function_ = oob_decision_function / self.n_estimators
-        # y_pred = np.argmax(oob_decision_function, axis=1)
-        # self.val_acc_ = accuracy_score(y, y_pred)
-
-        # X_aug = np.hstack(X_aug)
-        # return X_aug
-
     def transform(self, X):
         """
-        Return the concatenated transformation results from all base
-        estimators."""
+        Return the concatenated transformation results from all base estimators.
+        """
         n_samples, _ = X.shape
         X_aug = np.zeros((n_samples, self.n_classes * self.n_estimators))
         for idx, (key, estimator) in enumerate(self.estimators_.items()):

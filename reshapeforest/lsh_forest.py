@@ -1,5 +1,5 @@
 """
-Implementation of the forest model for classification in Deep Forest.
+Implementation of the isoaltion forest.
 
 """
 
@@ -9,10 +9,9 @@ import threading
 import math
 from .tree import LSHTree
 from .sampling import VSSampling
-from .tree import AngleLSH, E2LSH, KernelLSH
+from .tree import AngleLSH, E2LSH
 from joblib import Parallel, delayed
 from joblib import effective_n_jobs
-from sklearn.decomposition import PCA
 
 from sklearn.utils.fixes import _joblib_parallel_args
 from scipy.sparse import hstack as sparse_hstack
@@ -53,8 +52,6 @@ def _accumulate_prediction(_tree, data, granularity, out, lock):
                 out[i] += depths[i]
 
 def _partition_estimators(n_estimators, n_jobs):
-    """Private function used to partition estimators between jobs."""
-    # Compute the number of jobs
     n_jobs = min(effective_n_jobs(n_jobs), n_estimators)
 
     # Partition estimators between jobs
@@ -133,42 +130,17 @@ class LSHForest:
         selected_indexes = np.where(summed_paths / data.shape[0] < self.percentage_removal)
         selected_summed_nodes = summed_paths[selected_indexes]
         selected_nodes = out[:, selected_indexes[1]]
-        #selected_nodes = selected_nodes.toarray()
-        # weights = (1 / (np.log(selected_summed_nodes + math.e)))
-        # pca_input = np.multiply(selected_nodes, weights)
-        #
-        # temp = np.sum(pca_input, axis=1)
-        # sum_node = (temp / self._num_trees * 0.1).A
+
         weights = 1 / (np.log(selected_summed_nodes + math.e))
         temp = selected_nodes * weights.T
-        # pca_input = selected_nodes * weights
-        # x = selected_nodes.shape[0]
-        # temp = []
-        # for i in range(x):
-        #     c = np.dot(selected_nodes[i], weights[0])
-        #     temp.append(c)
 
-        # temp = np.sum(pca_input, axis=1)
         sum_node = (temp / self._num_trees * 0.1).reshape(len(data),1)
 
-        #return self._pca.transform(pca_input)
         return sum_node
 
     def decision_path(self, data):
         """
         Return the decision path in the forest.
-        Parameters
-        ----------
-        data : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, its dtype will be converted to
-            ``dtype=np.float32``. If a sparse matrix is provided, it will be
-            converted into a sparse ``csr_matrix``.
-        Returns
-        -------
-        indicator : sparse matrix of shape (n_samples, n_nodes)
-            Return a node indicator matrix where non zero elements indicates
-            that the samples goes through the nodes. The matrix is of CSR
-            format.
         """
         indicators = Parallel(n_jobs=self.n_jobs, verbose=self.verbose,
                               **_joblib_parallel_args(prefer="threads"))(
@@ -179,35 +151,20 @@ class LSHForest:
         selected_indexes = np.where(summed_paths / data.shape[0] < self.percentage_removal)
         selected_summed_nodes = summed_paths[selected_indexes]
         selected_nodes = out[:, selected_indexes[1]]
-        #selected_nodes = selected_nodes.toarray()
-        # weights = (1 / (np.log(selected_summed_nodes + math.e)))
-        # pca_input = np.multiply(selected_nodes, weights)
-        #
-        # temp = np.sum(pca_input, axis=1)
-        # sum_node = (temp / self._num_trees * 0.1).A
+
         weights = 1 / (np.log(selected_summed_nodes + math.e))
         temp = selected_nodes * weights.T
-        #pca_input = selected_nodes * weights
-        # x = selected_nodes.shape[0]
-        # temp = []
-        # for i in range(x):
-        #     c = np.dot(selected_nodes[i], weights[0])
-        #     temp.append(c)
 
-        # temp = np.sum(pca_input, axis=1)
         sum_node = (temp / self._num_trees * 0.1).reshape(len(data),1)
 
-        #return self._pca.transform(pca_input)
         return sum_node
 
     def decision_function(self, data):
         indices = range(len(data))
         data = np.c_[indices, data]
 
-        # Assign chunk of trees to jobs
         n_jobs, _, _ = _partition_estimators(self._num_trees, self.n_jobs)
 
-        # Avoid storing the output of every estimator by summing them here
         all_proba = [np.zeros(data.shape[0], dtype=np.float64)]
         all_proba = np.array(all_proba)
 

@@ -1,4 +1,4 @@
-"""Implementation of Deep Forest."""
+"""Implementation of Deep LSH based Isolation Forest."""
 
 __all__ = ["CascadeLSHForest"]
 
@@ -6,14 +6,10 @@ import time
 import numbers
 import numpy as np
 from abc import ABCMeta, abstractmethod
-from sklearn.cluster import KMeans
 
 from . import _utils
 from . import _io
 from .lsh_layer import Layer
-
-# from .tree import AngleLSH, E2LSH, KernelLSH
-
 
 class BaseCascadeLSHForest(metaclass=ABCMeta):
 
@@ -27,7 +23,6 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
             n_trees=100,
             granularity=1,
 
-            use_predictor=False,
             predictor="ALSHforest",
             n_tolerant_rounds=2,
             #delta=1e-5,
@@ -43,7 +38,6 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
 
         self.granularity = granularity,
         self.n_tolerant_rounds = n_tolerant_rounds
-        #self.delta = delta
         self.partial_mode = partial_mode
         self.n_jobs = n_jobs
         self.random_state = random_state
@@ -56,10 +50,6 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
         # Internal containers
         self.layers_ = {}
         self.buffer_ = _io.Buffer(partial_mode)
-
-        # Predictor
-        self.use_predictor = use_predictor
-        self.predictor_name = predictor
 
         # select concatenated features
         self.label_features = label_features
@@ -74,7 +64,6 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
 
 
     def _get_layer(self, layer_idx):
-        """Get the layer from the internal container according to the index."""
         if not 0 <= layer_idx <= self.n_layers_:
             msg = (
                 "The layer index should be in the range [0, {}], but got {}"
@@ -87,8 +76,6 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
         return self.layers_[layer_key]
 
     def _set_layer(self, layer_idx, layer):
-        """
-        Register a layer into the internal container with the given index."""
         layer_key = "layer_{}".format(layer_idx)
         if layer_key in self.layers_:
             msg = ("Layer with the key {} already exists in the internal"
@@ -99,8 +86,7 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
 
     def _set_n_trees(self, layer_idx):
         """
-        Set the number of decision trees for each estimator in the cascade
-        layer with `layer_idx` using the pre-defined rules.
+        Set the number of isolation trees for each estimator.
         """
         # The number of trees for each layer is fixed as `n_trees`.
         if isinstance(self.n_trees, numbers.Integral):
@@ -108,8 +94,7 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
                 msg = "n_trees = {} should be strictly positive."
                 raise ValueError(msg.format(self.n_trees))
             return self.n_trees
-        # The number of trees for the first 5 layers grows linearly with
-        # `layer_idx`, while that for remaining layers is fixed to `500`.
+
         elif self.n_trees == "auto":
             n_trees = 100 * (layer_idx + 1)
             return n_trees if n_trees <= 500 else 500
@@ -127,35 +112,15 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
             _, self.n_features_ = X.shape
             self.n_outputs_ = 1   # the number of label types
 
-    def _validate_params(self):
-        """
-        Validate parameters, those passed to the sub-modules will not be
-        checked here."""
-
-        if not self.max_layers > 0:
-            msg = "max_layers = {} should be strictly positive."
-            raise ValueError(msg.format(self.max_layers))
-
-        if not self.n_tolerant_rounds > 0:
-            msg = "n_tolerant_rounds = {} should be strictly positive."
-            raise ValueError(msg.format(self.n_tolerant_rounds))
-
-
-    @abstractmethod
-    def _repr_performance(self, pivot):
-        """Format the printting information on training performance."""
-
-
     @property
     def n_aug_features_(self):
         return 2 * self.n_estimators * self.n_outputs_
 
     def fit(self, X):
         """
-        Build a deep forest using the training data.
+        Build the DeepiForest using the training data.
         """
         self._check_input(X)
-        self._validate_params()
 
         X_train_ = X
         X_train_ = self.buffer_.cache_data(0, X_train_, is_training_data=True)
@@ -198,12 +163,11 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
         training_time = toc - tic
 
         if self.verbose > 0:
-            msg = "{} layer = {:<2} | {} | Elapsed = {:.3f} s"
+            msg = "{} layer = {:<2} | Elapsed = {:.3f} s"
             print(
                 msg.format(
                     _utils.ctime(),
                     0,
-                    self._repr_performance(1),
                     training_time
                 )
             )
@@ -258,18 +222,16 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
                 label_features = layer_.transform(X_middle_train_)
                 embedding_features = layer_.path_train(X_middle_train_)
                 both_middle_features = np.concatenate((label_features, embedding_features), axis=1)
-            #X_aug_train_ = np.zeros((len(X_train_), self.n_aug_features_))
 
             toc = time.time()
             training_time = toc - tic
 
             if self.verbose > 0:
-                msg = "{} layer = {:<2} | {} | Elapsed = {:.3f} s"
+                msg = "{} layer = {:<2} | Elapsed = {:.3f} s"
                 print(
                     msg.format(
                         _utils.ctime(),
                         layer_idx,
-                        self._repr_performance(1),
                         training_time
                     )
                 )
@@ -320,12 +282,11 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
             training_time = toc - tic
 
             if self.verbose > 0:
-                msg = "{} layer = {:<2} | {} | Elapsed = {:.3f} s"
+                msg = "{} layer = {:<2} | Elapsed = {:.3f} s"
                 print(
                     msg.format(
                         _utils.ctime(),
                         layer_idx,
-                        self._repr_performance(1),
                         training_time
                     )
                 )
@@ -338,15 +299,8 @@ class BaseCascadeLSHForest(metaclass=ABCMeta):
 
         return self
 
-    def clean(self):
-        """
-        Clean the buffer created by the model if ``partial_mode`` is ``True``.
-        """
-        if self.partial_mode:
-            self.buffer_.close()
 
-
-## Implementation of the deep forest for classification.
+## Implementation of the CascadeLSHForest.
 
 class CascadeLSHForest(BaseCascadeLSHForest):
 
@@ -361,16 +315,6 @@ class CascadeLSHForest(BaseCascadeLSHForest):
         """
         Predict class probabilities for X.
 
-        Parameters
-        ----------
-        X : :obj:`numpy.ndarray` of shape (n_samples, n_features)
-            The input samples. Internally, its dtype will be converted to
-            ``np.uint8``.
-
-        Returns
-        -------
-        proba : :obj:`numpy.ndarray` of shape (n_samples, n_classes)
-            The class probabilities of the input samples.
         """
         if not self.is_fitted_:
             raise AttributeError("Please fit the model first.")
@@ -380,7 +324,6 @@ class CascadeLSHForest(BaseCascadeLSHForest):
             print("{} Start to evalute the model:".format(_utils.ctime()))
 
         X_test = X
-        #X_middle_test_ = _utils.init_array(X_test, self.n_aug_features_)
 
         for layer_idx in range(self.n_layers_):
             layer = self._get_layer(layer_idx)
@@ -389,7 +332,6 @@ class CascadeLSHForest(BaseCascadeLSHForest):
                 print(msg.format(_utils.ctime(), layer_idx))
 
             if layer_idx == 0:
-                #X_aug_test_ = layer.transform(X_test)
                 if self.label_features:
                     label_middle_features = layer.transform(X_test)
                 elif self.embedding_features:
@@ -430,20 +372,8 @@ class CascadeLSHForest(BaseCascadeLSHForest):
     def predict(self, X):
         """
         Predict class for X.
-
-        Parameters
-        ----------
-        X : :obj:`numpy.ndarray` of shape (n_samples, n_features)
-            The input samples. Internally, its dtype will be converted to
-            ``np.uint8``.
-
-        Returns
-        -------
-        y : :obj:`numpy.ndarray` of shape (n_samples,)
-            The predicted classes.
         """
         proba = self.predict_proba(X)
         a = np.array(proba)
-        #print(a[:,0])
 
         return a[:,0]

@@ -1,9 +1,3 @@
-"""
-Implement methods on dumping and loading large objects using joblib. This
-class is designed to support the partial mode in deep forest.
-"""
-
-
 __all__ = ["Buffer"]
 
 import os
@@ -14,25 +8,7 @@ from joblib import (load, dump)
 
 
 class Buffer(object):
-    """
-    The class of dumping and loading large array objects including the data
-    and estimators.
 
-    Parameters
-    ----------
-    partial_mode : bool
-
-        - If ``True``, a temporary buffer on the local disk is created to
-          cache objects such as data and estimators.
-        - If ``False``, all objects are directly stored in memory without
-          extra processing.
-    store_est : bool, default=True
-        Whether to cache the estimators to the local buffer.
-    store_pred : bool, default=True
-        Whether to cache the predictor to the local buffer.
-    store_data : bool, default=False
-        Whether to cache the intermediate data to the local buffer.
-    """
     def __init__(self,
                  use_buffer,
                  buffer_dir=None,
@@ -69,30 +45,6 @@ class Buffer(object):
             return None
 
     def cache_data(self, layer_idx, X, is_training_data=True):
-        """
-        When ``X`` is a large array, it is not recommended to directly pass the
-        array to all processors because the array will be copied multiple
-        times and cause extra overheads. Instead, dumping the array to the
-        local buffer and reading it as the ``numpy.memmap`` mode across
-        processors is able to speed up the training and evaluating process.
-
-        Parameters
-        ----------
-        layer_idx : int
-            The index of the cascade layer that utilizes ``X``.
-        X : ndarray of shape (n_samples, n_features)
-            The training / testing data to be cached.
-        is_training_data : bool, default=True
-            Whether ``X`` is the training data.
-
-        Returns
-        -------
-        X: {ndarray, ndarray in numpy.memmap mode}
-
-            - If ``self.store_data`` is ``True``, return the memory-mapped
-            object of `X` cached to the local buffer.
-            - If ``self.store_data`` is ``False``, return the original ``X``.
-        """
         if not self.store_data:
             return X
 
@@ -116,35 +68,6 @@ class Buffer(object):
         return X_mmap
 
     def cache_estimator(self, layer_idx, est_idx, est_name, est):
-        """
-        Dumping the fitted estimator to the buffer is highly recommended,
-        especially when the python version is below 3.8. When the size of
-        estimator is large, for instance, several gigabytes in the memory,
-        sending it back from each processor will cause the struct error.
-
-        Reference:
-            https://bugs.python.org/issue17560
-
-        Parameters
-        ----------
-        layer_idx : int
-            The index of the cascade layer that contains the estimator to be
-            cached.
-        est_idx : int
-            The index of the estimator in the cascade layer to be cached.
-        est_name : {"rf", "erf"}
-            The name of the estimator to be cached.
-        est : object
-            The object of base estimator.
-
-        Returns
-        -------
-        cache_dir : {string, object}
-
-            - If ``self.store_est`` is ``True``, return the absolute path to
-              the location of the cached estimator.
-            - If ``self.store_est`` is ``False``, return the estimator.
-        """
         if not self.store_est:
             return est
 
@@ -155,22 +78,6 @@ class Buffer(object):
         return cache_dir
 
     def cache_predictor(self, predictor):
-        """
-        Please refer to `cache_estimator`.
-
-        Parameters
-        ----------
-        predictor : object
-            The object of the predictor.
-
-        Returns
-        -------
-        pred_dir : {string, object}
-
-            - If ``self.store_pred`` is ``True``, return the absolute path to
-              the location of the cached predictor.
-            - If ``self.store_pred`` is ``False``, return the predictor.
-        """
         if not self.store_pred:
             return predictor
 
@@ -188,9 +95,7 @@ class Buffer(object):
         return estimator
 
     def load_predictor(self, predictor):
-        # Since this function is always called from `cascade.py`, the input
-        # `predictor` could be the actual predictor object. If so, this
-        # function will directly return the predictor.
+
         if not isinstance(predictor, str):
             return predictor
 
@@ -203,7 +108,6 @@ class Buffer(object):
         return predictor
 
     def del_estimator(self, layer_idx):
-        """Used for the early stopping stage in deep forest."""
         for est_name in os.listdir(self.model_dir_):
             if est_name.startswith(str(layer_idx)):
                 try:
@@ -214,7 +118,6 @@ class Buffer(object):
                     warnings.warn(msg, RuntimeWarning)
 
     def close(self):
-        """Clean up the buffer."""
         try:
             self.buffer.cleanup()
         except OSError:
@@ -223,7 +126,6 @@ class Buffer(object):
 
 
 def model_mkdir(dirname):
-    """Make the directory for saving the model."""
     if os.path.isdir(dirname):
         msg = ("The directory to be created already exists {}.")
         raise RuntimeError(msg.format(dirname))
@@ -233,8 +135,6 @@ def model_mkdir(dirname):
 
 
 def model_saveobj(dirname, obj_type, obj, partial_mode=False):
-    """Save objects of the deep forest according to the specified type."""
-
     if not os.path.isdir(dirname):
         msg = "Cannot find the target directory: {}. Please create it first."
         raise RuntimeError(msg.format(dirname))
@@ -255,16 +155,12 @@ def model_saveobj(dirname, obj_type, obj, partial_mode=False):
             msg = "Cannot find the target directory: {}."
             raise RuntimeError(msg.format(est_path))
 
-        # If `partial_mode` is True, each base estimator in the model is the
-        # path to the dumped estimator, and we only need to move it to the
-        # target directory.
         if partial_mode:
             for _, layer in obj.items():
                 for estimator_key, estimator in layer.estimators_.items():
                     dest = os.path.join(est_path, estimator_key + ".est")
                     shutil.move(estimator, dest)
-        # Otherwise, we directly use `joblib.dump` to save the estimator to
-        # the target directory.
+
         else:
             for _, layer in obj.items():
                 for estimator_key, estimator in layer.estimators_.items():
@@ -273,7 +169,6 @@ def model_saveobj(dirname, obj_type, obj, partial_mode=False):
     elif obj_type == "predictor":
         pred_path = os.path.join(dirname, "estimator", "predictor.est")
 
-        # Same as `layer`
         if partial_mode:
             shutil.move(obj, pred_path)
         else:
@@ -283,7 +178,6 @@ def model_saveobj(dirname, obj_type, obj, partial_mode=False):
 
 
 def model_loadobj(dirname, obj_type, d=None):
-    """Load objects of the deep forest from the given directory."""
 
     if not os.path.isdir(dirname):
         msg = "Cannot find the target directory: {}."

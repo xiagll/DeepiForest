@@ -1,8 +1,3 @@
-#! /usr/bin/python
-#
-# Implemented by Xuyun Zhang (email: xuyun.zhang@auckland.ac.nz). Copyright reserved.
-#
-
 class LSHNode:
     def __init__(self, node_ID=0, data_size=0, children={}, children_count={}, hash_func_index=-1, lof=0):
         # self._data = data

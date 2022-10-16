@@ -1,22 +1,10 @@
-#! /usr/bin/python
-#
-# Implemented by Xuyun Zhang (email: xuyun.zhang@auckland.ac.nz). Copyright reserved.
-#
-
 import numpy as np
-import copy as cp
 from sklearn.cluster import KMeans
 
 class LSH():
 	''' The base class of LSH families '''
 	def __init__(self, default_pool_size=50):
 		self._default_pool_size = default_pool_size
-
-	# Virtual methods
-	# type <- get_lsh_type(self)
-	# display_hash_func_parameters(self)
-	# x' <- format_for_lsh(self, x)
-	# key <- get_hash_value(self, x, hash_index)
 
 
 class E2LSH(LSH):
