@@ -3,7 +3,7 @@
 ## The source code for the paper "DeepiForest: A Deep Anomaly Detection Framework with Hashing Based Isolation Forest"
 
 
-### An example for running the code:
+### **An example for running the code:**
 import pandas as pd  
 import time  
 import numpy as np  
