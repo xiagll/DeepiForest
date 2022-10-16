@@ -20,8 +20,8 @@
     y_pred = model.predict(X) 
     all_time = time.time() - start_time 
     auc = roc_auc_score(ground_truth, -1.0 * y_pred) * 100  
-    print("\nTesting Accuracy: {:.3f} %".format(auc))  
-    print("Execution time:	", all_time)
+    print("\nTesting Accuracy:	{:.3f} %".format(auc))  
+    print("Execution time:	", all_time)  
     
 
 
